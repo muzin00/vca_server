@@ -1,8 +1,16 @@
+import logging
+
 import uvicorn
 from fastapi import FastAPI
 
 from vca_api.routes.voices import router as voices_router
 from vca_api.settings import server_settings
+
+# ロギング設定
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s:     %(name)s - %(message)s",
+)
 
 app = FastAPI(
     title="VCA Server",
