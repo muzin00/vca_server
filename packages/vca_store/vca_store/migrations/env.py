@@ -2,12 +2,11 @@ from logging.config import fileConfig
 
 import vca_core.models  # noqa: F401  # pyright: ignore[reportUnusedImport]
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import create_engine, pool
 from sqlmodel import SQLModel
 from vca_store.settings import db_settings
 
 config = context.config
-config.set_main_option("sqlalchemy.url", db_settings.database_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -27,7 +26,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
+    url = db_settings.database_url
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -46,9 +45,8 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
+    connectable = create_engine(
+        db_settings.database_url,
         poolclass=pool.NullPool,
     )
 

@@ -13,6 +13,9 @@ class DatabaseSettings(BaseSettings):
 
     @property
     def database_url(self) -> str:
+        # Cloud SQL Proxy(Unixソケット接続)の場合
+        if self.POSTGRES_SERVER.startswith("/cloudsql/"):
+            return f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@/{self.POSTGRES_DB}?host={self.POSTGRES_SERVER}"
         return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
 
