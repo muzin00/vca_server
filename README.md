@@ -7,9 +7,11 @@
 - [Google Cloud SDK (gcloud)](https://cloud.google.com/sdk/docs/install) インストール済み
 - `gcloud auth login` で認証完了
 
-### 初回セットアップ
+---
 
-#### 1. プロジェクト作成
+## 初回セットアップ
+
+### 1. プロジェクト作成とAPI有効化
 
 ```bash
 # プロジェクト作成
@@ -27,10 +29,9 @@ gcloud services enable run.googleapis.com \
   secretmanager.googleapis.com
 ```
 
-#### 2. Cloud SQL セットアップ
+### 2. 環境変数設定
 
 ```bash
-# 環境変数設定
 export PROJECT_ID=$(gcloud config get-value project)
 export REGION=asia-northeast1
 export INSTANCE_NAME=vca-postgres
@@ -38,8 +39,12 @@ export DB_NAME=vca_db
 export DB_USER=vca_user
 export ROOT_PASSWORD="<SECURE_ROOT_PASSWORD>"
 export DB_PASSWORD="<SECURE_DB_PASSWORD>"
+```
 
-# Cloud SQLインスタンス作成（5-10分）
+### 3. Cloud SQL セットアップ
+
+```bash
+# インスタンス作成（5-10分）
 gcloud sql instances create $INSTANCE_NAME \
   --database-version=POSTGRES_16 \
   --edition=ENTERPRISE \
@@ -58,7 +63,7 @@ export CONNECTION_NAME=$(gcloud sql instances describe $INSTANCE_NAME --format="
 echo "Connection Name: $CONNECTION_NAME"
 ```
 
-#### 3. Secret Manager にパスワード保存
+### 4. Secret Manager セットアップ
 
 ```bash
 # パスワードをSecretに保存
@@ -78,23 +83,26 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
   --role="roles/cloudsql.client"
 ```
 
-#### 4. マイグレーション用 Cloud Run Job 作成
+### 5. コンテナイメージビルド
 
 ```bash
-# 初回は先にイメージをビルド
+# 初回イメージビルド（まだ公開しない）
 gcloud run deploy vca-server \
   --source . \
   --region=$REGION \
   --platform=managed \
   --no-allow-unauthenticated
 
-# イメージURLを取得
+# イメージURL取得
 IMAGE_URL=$(gcloud run services describe vca-server \
   --region=$REGION \
   --format="value(spec.template.spec.containers[0].image)")
+```
 
-# マイグレーション用Job作成
-gcloud run jobs create vca-migrations \
+### 6. マイグレーション用 Cloud Run Job 作成
+
+```bash
+gcloud run jobs create migration-upgrade \
   --image=$IMAGE_URL \
   --region=$REGION \
   --command="sh" \
@@ -106,15 +114,15 @@ gcloud run jobs create vca-migrations \
   --task-timeout=300
 ```
 
-#### 5. マイグレーション実行
+### 7. マイグレーション実行
 
 ```bash
-gcloud run jobs execute vca-migrations \
+gcloud run jobs execute migration-upgrade \
   --region=$REGION \
   --wait
 ```
 
-#### 6. Cloud Run デプロイ
+### 8. Cloud Run デプロイ（外部公開）
 
 ```bash
 gcloud run deploy vca-server \
@@ -131,51 +139,61 @@ gcloud run deploy vca-server \
   --timeout=300
 ```
 
-### 再デプロイ（コード変更後）
+---
+
+## 再デプロイ（コード変更後）
+
+### 環境変数再設定
 
 ```bash
-# 環境変数を再設定
 export PROJECT_ID=$(gcloud config get-value project)
 export REGION=asia-northeast1
 export INSTANCE_NAME=vca-postgres
 export CONNECTION_NAME=$(gcloud sql instances describe $INSTANCE_NAME --format="value(connectionName)")
+```
 
-# 1. 新しいイメージをビルド
+### デプロイ手順
+
+```bash
+# 1. 新しいイメージをビルド（トラフィックはまだ流さない）
 gcloud run deploy vca-server \
   --source . \
   --region=$REGION \
   --no-traffic
 
-# 2. 新しいイメージでマイグレーションJob更新
+# 2. イメージURL取得
 IMAGE_URL=$(gcloud run services describe vca-server \
   --region=$REGION \
   --format="value(spec.template.spec.containers[0].image)")
 
-gcloud run jobs update vca-migrations \
+# 3. マイグレーションJob更新
+gcloud run jobs update migration-upgrade \
   --image=$IMAGE_URL \
   --region=$REGION
 
-# 3. マイグレーション実行
-gcloud run jobs execute vca-migrations \
+# 4. マイグレーション実行
+gcloud run jobs execute migration-upgrade \
   --region=$REGION \
   --wait
 
-# 4. トラフィックを新リビジョンに切り替え
+# 5. トラフィックを新リビジョンに切り替え
 gcloud run services update-traffic vca-server \
   --to-latest \
   --region=$REGION
 ```
 
-### 便利なコマンド
+---
 
-#### ログ確認
+## 便利なコマンド
+
+### ログ確認
 
 ```bash
-# Cloud Run サービスのログ
+# サービスログ
 gcloud run logs read vca-server --region asia-northeast1 --limit=50
 
-# マイグレーションJobのログ
-gcloud logging read "resource.type=cloud_run_job AND resource.labels.job_name=vca-migrations" \
+# マイグレーションログ
+gcloud logging read "resource.type=cloud_run_job AND resource.labels.job_name=migration-upgrade" \
   --limit=50 \
   --format="value(textPayload)"
 
@@ -183,74 +201,73 @@ gcloud logging read "resource.type=cloud_run_job AND resource.labels.job_name=vc
 gcloud run logs tail vca-server --region asia-northeast1
 ```
 
-#### サービス情報
+### サービス情報
 
 ```bash
 # サービス詳細
 gcloud run services describe vca-server --region asia-northeast1
 
-# 現在のイメージURL
+# サービスURL取得
 gcloud run services describe vca-server \
-  --region=$REGION \
-  --format="value(spec.template.spec.containers[0].image)"
-
-# 環境変数一覧
-gcloud run services describe vca-server \
-  --region=$REGION \
-  --format="value(spec.template.spec.containers[0].env)"
+  --region asia-northeast1 \
+  --format="value(status.url)"
 ```
 
-#### データベース操作
+### データベース操作
 
 ```bash
 # Cloud SQLに接続
 gcloud sql connect vca-postgres --user=vca_user --database=vca_db
 
-# データベース一覧
-gcloud sql databases list --instance=vca-postgres
-
 # バックアップ作成
 gcloud sql backups create --instance=vca-postgres
 ```
 
-#### トラブルシューティング
+### マイグレーション管理
+
+#### マイグレーションJob一覧
+
+- **migration-upgrade**: 最新状態にマイグレーション (`alembic upgrade head`)
+- **migration-downgrade**: 1ステップ戻す (`alembic downgrade -1`)
+- **migration-reset**: すべてリセット (`alembic downgrade base`)
+
+#### 使い方
 
 ```bash
-# マイグレーションを手動で再実行
-gcloud run jobs execute vca-migrations --region=$REGION --wait
+# 最新にアップグレード
+gcloud run jobs execute migration-upgrade --region asia-northeast1 --wait
 
+# 1ステップ戻す（本番環境で慎重にロールバック）
+gcloud run jobs execute migration-downgrade --region asia-northeast1 --wait
+
+# すべてリセット（開発環境のみ）
+gcloud run jobs execute migration-reset --region asia-northeast1 --wait
+
+# リセット後、最新に戻す
+gcloud run jobs execute migration-reset --region asia-northeast1 --wait
+gcloud run jobs execute migration-upgrade --region asia-northeast1 --wait
+```
+
+### トラブルシューティング
+
+```bash
 # サービスを以前のリビジョンにロールバック
 gcloud run services update-traffic vca-server \
   --to-revisions=REVISION_NAME=100 \
-  --region=$REGION
-
-# 環境変数を更新
-gcloud run services update vca-server \
-  --region=$REGION \
-  --update-env-vars KEY=VALUE
+  --region asia-northeast1
 ```
 
-### アーキテクチャ
+---
+
+## アーキテクチャ
 
 - **API**: Cloud Run (FastAPI)
-- **データベース**: Cloud SQL (PostgreSQL 16)
-- **シークレット管理**: Secret Manager
-- **マイグレーション**: Cloud Run Jobs (Alembic)
+- **Database**: Cloud SQL (PostgreSQL 16)
+- **Secrets**: Secret Manager
+- **Migrations**: Cloud Run Jobs (Alembic)
 
-### コスト概算（東京リージョン）
+## コスト概算（東京リージョン）
 
 - Cloud SQL (db-f1-micro): ~$10/月
 - Cloud Run: 従量課金（無料枠あり）
 - Secret Manager: ほぼ無料
-
-### トラブルシューティング
-
-#### マイグレーションエラー
-
-```bash
-# ログを確認
-gcloud logging read "resource.type=cloud_run_job AND resource.labels.job_name=vca-migrations" --limit=20
-
-# 手動で再実行
-gcloud run jobs execute vca-migrations --region=$REGION --wait
-```
