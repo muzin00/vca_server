@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from uuid import uuid4
 
 from vca_core.constants import MAX_AUDIO_SIZE
+from vca_core.exceptions import NotFoundError
 from vca_core.interfaces.passphrase_repository import PassphraseRepositoryProtocol
 from vca_core.interfaces.speaker_repository import SpeakerRepositoryProtocol
 from vca_core.interfaces.storage import StorageProtocol
@@ -181,25 +182,59 @@ class AuthService:
 
         Returns:
             AuthVerifyResult: 認証結果
+
+        Raises:
+            NotFoundError: 話者が存在しない場合
         """
         logger.info(f"Verifying speaker: {speaker_id}")
 
-        # TODO: Phase 2以降で実装
         # 1. speaker_id から Speaker を取得
-        # 2. 音声データをデコード
-        # 3. 文字起こし → 正規化
-        # 4. 声紋抽出
-        # 5. 登録済みパスフレーズとの照合
-        # 6. 登録済み声紋との類似度計算
-        # 7. 認証判定
+        speaker = self.speaker_repository.get_by_speaker_id(speaker_id)
+        if speaker is None:
+            raise NotFoundError("Speaker", speaker_id)
+        assert speaker.id is not None
 
-        # スタブ: 固定値を返す
+        # 2. 音声データをデコード
+        audio_bytes = self._decode_audio_data(audio_data)
+
+        # 3. 文字起こし（正規化済み）
+        transcribed_text = self._transcribe_audio(audio_bytes)
+        logger.info(f"Transcribed text: {transcribed_text}")
+
+        # 4. 登録済みパスフレーズを取得
+        passphrases = self.passphrase_repository.get_by_speaker_id(speaker.id)
+        if not passphrases:
+            return AuthVerifyResult(
+                authenticated=False,
+                speaker_id=speaker_id,
+                passphrase_match=False,
+                voice_similarity=0.0,
+                message="パスフレーズが登録されていません",
+            )
+
+        # 5. パスフレーズ照合（完全一致）
+        registered_phrases = [p.phrase for p in passphrases]
+        passphrase_match = transcribed_text in registered_phrases
+        logger.info(f"Passphrase match: {passphrase_match}")
+
+        # 6. 声紋比較（TODO: 未実装、スタブ値）
+        voice_similarity = 0.85
+
+        # 7. 認証判定
+        # 現在はパスフレーズ一致のみで判定（声紋比較は未実装）
+        authenticated = passphrase_match
+
+        if authenticated:
+            message = "認証成功"
+        else:
+            message = "認証失敗: パスフレーズが一致しません"
+
         return AuthVerifyResult(
-            authenticated=True,
+            authenticated=authenticated,
             speaker_id=speaker_id,
-            passphrase_match=True,
-            voice_similarity=0.85,
-            message="認証成功（スタブ）",
+            passphrase_match=passphrase_match,
+            voice_similarity=voice_similarity,
+            message=message,
         )
 
     def _transcribe_audio(self, audio_bytes: bytes) -> str:

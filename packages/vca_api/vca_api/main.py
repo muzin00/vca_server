@@ -2,7 +2,9 @@ import logging
 
 import uvicorn
 from fastapi import FastAPI
+from vca_core.exceptions import NotFoundError
 
+from vca_api.exception_handlers import not_found_exception_handler
 from vca_api.routes.auth import router as auth_router
 from vca_api.settings import server_settings
 
@@ -16,6 +18,9 @@ app = FastAPI(
     title="VCA Server",
     version="0.1.0",
 )
+
+# 例外ハンドラ登録
+app.add_exception_handler(NotFoundError, not_found_exception_handler)
 
 app.include_router(auth_router)
 

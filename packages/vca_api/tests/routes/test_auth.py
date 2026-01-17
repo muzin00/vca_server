@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+from vca_core.models import Speaker
 
 
 class TestAuthRegister:
@@ -101,10 +102,12 @@ class TestAuthRegister:
 class TestAuthVerify:
     """POST /api/v1/auth/verify のテスト."""
 
-    def test_verify_speaker(self, client: TestClient):
-        """認証（基本ケース）."""
+    def test_verify_speaker_success(
+        self, client: TestClient, registered_speaker: Speaker
+    ):
+        """認証成功: パスフレーズ一致."""
         request_data = {
-            "speaker_id": "speaker_001",
+            "speaker_id": registered_speaker.speaker_id,
             "audio_data": "SGVsbG8gV29ybGQh",
         }
 
@@ -112,16 +115,18 @@ class TestAuthVerify:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["speaker_id"] == "speaker_001"
-        assert "authenticated" in data
-        assert "passphrase_match" in data
+        assert data["speaker_id"] == registered_speaker.speaker_id
+        assert data["authenticated"] is True
+        assert data["passphrase_match"] is True
         assert "voice_similarity" in data
         assert "message" in data
 
-    def test_verify_speaker_with_audio_format(self, client: TestClient):
+    def test_verify_speaker_with_audio_format(
+        self, client: TestClient, registered_speaker: Speaker
+    ):
         """audio_formatを指定して認証."""
         request_data = {
-            "speaker_id": "speaker_001",
+            "speaker_id": registered_speaker.speaker_id,
             "audio_data": "SGVsbG8gV29ybGQh",
             "audio_format": "wav",
         }
@@ -130,7 +135,20 @@ class TestAuthVerify:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["speaker_id"] == "speaker_001"
+        assert data["speaker_id"] == registered_speaker.speaker_id
+        assert data["authenticated"] is True
+
+    def test_verify_speaker_not_found(self, client: TestClient):
+        """存在しない話者でエラー."""
+        request_data = {
+            "speaker_id": "nonexistent_speaker",
+            "audio_data": "SGVsbG8gV29ybGQh",
+        }
+
+        response = client.post("/api/v1/auth/verify", json=request_data)
+
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
 
     def test_verify_speaker_missing_speaker_id(self, client: TestClient):
         """speaker_idなしでエラー."""

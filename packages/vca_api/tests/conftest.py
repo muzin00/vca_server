@@ -8,6 +8,8 @@ from vca_api.dependencies.storage import get_storage
 from vca_api.dependencies.worker import get_worker_client
 from vca_api.main import app
 from vca_core.interfaces.worker_client import WorkerClientProtocol
+from vca_core.models import Speaker
+from vca_store.repositories import PassphraseRepository, SpeakerRepository
 from vca_store.session import get_session
 from vca_store.storages import LocalStorage
 
@@ -70,3 +72,25 @@ def client_fixture(
     client = TestClient(app)
     yield client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(name="registered_speaker")
+def registered_speaker_fixture(session: Session) -> Speaker:
+    """登録済み話者を作成するfixture."""
+    speaker_repo = SpeakerRepository(session)
+    passphrase_repo = PassphraseRepository(session)
+
+    # 話者を作成
+    speaker = speaker_repo.create(
+        Speaker(speaker_id="test_speaker", speaker_name="テスト話者")
+    )
+    assert speaker.id is not None
+
+    # パスフレーズを登録（mock_passphraseはMockWorkerClientが返す値）
+    passphrase_repo.create(
+        speaker_id=speaker.id,
+        voice_sample_id=1,  # ダミー値
+        phrase="mock_passphrase",
+    )
+
+    return speaker
