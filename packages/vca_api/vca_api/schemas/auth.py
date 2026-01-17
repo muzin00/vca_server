@@ -1,0 +1,38 @@
+from pydantic import BaseModel, Field
+
+
+class AuthRegisterRequest(BaseModel):
+    """話者登録リクエスト."""
+
+    speaker_id: str = Field(
+        ...,
+        description="話者ID（一意識別子）",
+        min_length=1,
+        max_length=100,
+    )
+    speaker_name: str | None = Field(
+        None,
+        description="話者名（オプショナル）",
+        max_length=100,
+    )
+    audio_data: str = Field(
+        ...,
+        description="音声データ（Base64エンコードまたはData URL形式）",
+        min_length=1,
+    )
+    audio_format: str | None = Field(
+        default=None,
+        description="音声フォーマット（省略時は自動判定）",
+        pattern="^(wav|mp3|ogg|webm|aac|flac|m4a)$",
+    )
+
+
+class AuthRegisterResponse(BaseModel):
+    """話者登録レスポンス."""
+
+    speaker_id: str = Field(..., description="話者ID")
+    speaker_name: str | None = Field(None, description="話者名")
+    voice_sample_id: str = Field(..., description="音声サンプルID")
+    voiceprint_id: str = Field(..., description="声紋ID")
+    passphrase: str = Field(..., description="抽出されたパスフレーズ")
+    status: str = Field(..., description="登録ステータス")
