@@ -5,9 +5,23 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 from vca_api.dependencies.storage import get_storage
+from vca_api.dependencies.worker import get_worker_client
 from vca_api.main import app
+from vca_core.interfaces.worker_client import WorkerClientProtocol
 from vca_store.session import get_session
 from vca_store.storages import LocalStorage
+
+
+class MockWorkerClient(WorkerClientProtocol):
+    """テスト用のモックWorkerClient."""
+
+    def transcribe(self, audio_bytes: bytes) -> str:
+        """モック文字起こし."""
+        return "mock_passphrase"
+
+    def extract_voiceprint(self, audio_bytes: bytes) -> bytes:
+        """モック声紋抽出."""
+        return b"\x00" * 256 * 4
 
 
 @pytest.fixture(name="session")
@@ -29,8 +43,16 @@ def storage_fixture(tmp_path: Path) -> LocalStorage:
     return LocalStorage(base_path=str(tmp_path / "voices"))
 
 
+@pytest.fixture(name="worker_client")
+def worker_client_fixture() -> MockWorkerClient:
+    """テスト用のモックWorkerClient."""
+    return MockWorkerClient()
+
+
 @pytest.fixture(name="client")
-def client_fixture(session: Session, storage: LocalStorage):
+def client_fixture(
+    session: Session, storage: LocalStorage, worker_client: MockWorkerClient
+):
     """テスト用クライアント（依存性オーバーライド付き）."""
 
     def get_session_override():
@@ -39,8 +61,12 @@ def client_fixture(session: Session, storage: LocalStorage):
     def get_storage_override():
         return storage
 
+    def get_worker_client_override():
+        return worker_client
+
     app.dependency_overrides[get_session] = get_session_override
     app.dependency_overrides[get_storage] = get_storage_override
+    app.dependency_overrides[get_worker_client] = get_worker_client_override
     client = TestClient(app)
     yield client
     app.dependency_overrides.clear()

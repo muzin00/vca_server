@@ -2289,6 +2289,7 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "vca-core" },
     { name = "vca-store" },
+    { name = "vca-worker" },
 ]
 
 [package.metadata]
@@ -2297,6 +2298,7 @@ requires-dist = [
     { name = "pydantic-settings" },
     { name = "vca-core", editable = "packages/vca_core" },
     { name = "vca-store", editable = "packages/vca_store" },
+    { name = "vca-worker", editable = "packages/vca_worker" },
 ]
 
 [[package]]
