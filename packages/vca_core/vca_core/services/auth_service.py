@@ -27,6 +27,17 @@ class AuthRegisterResult:
     passphrase: Passphrase
 
 
+@dataclass
+class AuthVerifyResult:
+    """認証結果（1:1照合）."""
+
+    authenticated: bool
+    speaker_id: str
+    passphrase_match: bool
+    voice_similarity: float
+    message: str
+
+
 class AuthService:
     def __init__(
         self,
@@ -152,6 +163,44 @@ class AuthService:
         logger.info(f"Upload successful: {storage_path}")
 
         return storage_path
+
+    def verify(
+        self,
+        speaker_id: str,
+        audio_data: str,
+        audio_format: str,
+    ) -> AuthVerifyResult:
+        """認証（1:1照合）.
+
+        指定した話者との照合を行う。
+
+        Args:
+            speaker_id: 照合対象の話者ID
+            audio_data: Base64エンコードされた音声データ
+            audio_format: 音声フォーマット
+
+        Returns:
+            AuthVerifyResult: 認証結果
+        """
+        logger.info(f"Verifying speaker: {speaker_id}")
+
+        # TODO: Phase 2以降で実装
+        # 1. speaker_id から Speaker を取得
+        # 2. 音声データをデコード
+        # 3. 文字起こし → 正規化
+        # 4. 声紋抽出
+        # 5. 登録済みパスフレーズとの照合
+        # 6. 登録済み声紋との類似度計算
+        # 7. 認証判定
+
+        # スタブ: 固定値を返す
+        return AuthVerifyResult(
+            authenticated=True,
+            speaker_id=speaker_id,
+            passphrase_match=True,
+            voice_similarity=0.85,
+            message="認証成功（スタブ）",
+        )
 
     def _transcribe_audio(self, audio_bytes: bytes) -> str:
         """音声を文字起こし."""

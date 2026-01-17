@@ -96,3 +96,70 @@ class TestAuthRegister:
         response = client.post("/api/v1/auth/register", json=request_data)
 
         assert response.status_code == 422  # Validation Error
+
+
+class TestAuthVerify:
+    """POST /api/v1/auth/verify のテスト."""
+
+    def test_verify_speaker(self, client: TestClient):
+        """認証（基本ケース）."""
+        request_data = {
+            "speaker_id": "speaker_001",
+            "audio_data": "SGVsbG8gV29ybGQh",
+        }
+
+        response = client.post("/api/v1/auth/verify", json=request_data)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["speaker_id"] == "speaker_001"
+        assert "authenticated" in data
+        assert "passphrase_match" in data
+        assert "voice_similarity" in data
+        assert "message" in data
+
+    def test_verify_speaker_with_audio_format(self, client: TestClient):
+        """audio_formatを指定して認証."""
+        request_data = {
+            "speaker_id": "speaker_001",
+            "audio_data": "SGVsbG8gV29ybGQh",
+            "audio_format": "wav",
+        }
+
+        response = client.post("/api/v1/auth/verify", json=request_data)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["speaker_id"] == "speaker_001"
+
+    def test_verify_speaker_missing_speaker_id(self, client: TestClient):
+        """speaker_idなしでエラー."""
+        request_data = {
+            "audio_data": "SGVsbG8gV29ybGQh",
+        }
+
+        response = client.post("/api/v1/auth/verify", json=request_data)
+
+        assert response.status_code == 422  # Validation Error
+
+    def test_verify_speaker_missing_audio_data(self, client: TestClient):
+        """audio_dataなしでエラー."""
+        request_data = {
+            "speaker_id": "speaker_001",
+        }
+
+        response = client.post("/api/v1/auth/verify", json=request_data)
+
+        assert response.status_code == 422  # Validation Error
+
+    def test_verify_speaker_invalid_audio_format(self, client: TestClient):
+        """無効なaudio_formatでエラー."""
+        request_data = {
+            "speaker_id": "speaker_001",
+            "audio_data": "SGVsbG8gV29ybGQh",
+            "audio_format": "invalid",
+        }
+
+        response = client.post("/api/v1/auth/verify", json=request_data)
+
+        assert response.status_code == 422  # Validation Error

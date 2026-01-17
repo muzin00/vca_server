@@ -2,7 +2,12 @@ from fastapi import APIRouter, Depends
 from vca_core.services.auth_service import AuthService
 
 from vca_api.dependencies.auth import get_auth_service
-from vca_api.schemas.auth import AuthRegisterRequest, AuthRegisterResponse
+from vca_api.schemas.auth import (
+    AuthRegisterRequest,
+    AuthRegisterResponse,
+    AuthVerifyRequest,
+    AuthVerifyResponse,
+)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -27,4 +32,25 @@ async def register(
         voiceprint_id=result.voiceprint.public_id,
         passphrase=result.passphrase.phrase,
         status="registered",
+    )
+
+
+@router.post("/verify", response_model=AuthVerifyResponse)
+async def verify(
+    request: AuthVerifyRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+) -> AuthVerifyResponse:
+    """認証（1:1照合）."""
+    result = auth_service.verify(
+        speaker_id=request.speaker_id,
+        audio_data=request.audio_data,
+        audio_format=request.audio_format or "wav",
+    )
+
+    return AuthVerifyResponse(
+        authenticated=result.authenticated,
+        speaker_id=result.speaker_id,
+        passphrase_match=result.passphrase_match,
+        voice_similarity=result.voice_similarity,
+        message=result.message,
     )
