@@ -1,10 +1,46 @@
 # VCA Server
 
+## ローカル開発
+
+### 起動
+
+```bash
+docker compose up -d
+```
+
+### テスト実行
+
+```bash
+# 全テスト
+docker compose exec app sh -c "uv sync && uv run pytest"
+
+# 特定パッケージのテスト
+docker compose exec app sh -c "uv sync && uv run pytest packages/vca_api/tests/ -v"
+
+# 特定ファイルのテスト
+docker compose exec app sh -c "uv sync && uv run pytest packages/vca_api/tests/routes/test_auth.py -v"
+```
+
+### 型チェック
+
+```bash
+docker compose exec app sh -c "uv sync && uv run pyright"
+```
+
+### Lint
+
+```bash
+docker compose exec app sh -c "uv sync && uv run ruff check ."
+```
+
+---
+
 ## GCP Cloud Runへのデプロイ
 
 ### 前提条件
 
-- [Google Cloud SDK (gcloud)](https://cloud.google.com/sdk/docs/install) インストール済み
+- [Google Cloud SDK (gcloud)](https://cloud.google.com/sdk/docs/install)
+  インストール済み
 - `gcloud auth login` で認証完了
 
 ---
