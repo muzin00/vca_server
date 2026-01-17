@@ -30,6 +30,7 @@ dev = [
 [tool.pyright]
 typeCheckingMode = "strict"
 exclude = ["venv", ".venv", "alembic"]
+reportMissingTypeStubs = false
 
 [tool.ruff]
 target-version = "py311"
