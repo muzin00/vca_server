@@ -83,9 +83,22 @@ curl -X POST http://localhost:8000/api/v1/auth/verify \
   インストール済み
 - `gcloud auth login` で認証完了
 
+### 構成の選択
+
+| 構成             | DB          | 月額コスト | 推奨用途                 |
+| ---------------- | ----------- | ---------: | ------------------------ |
+| **PostgreSQL版** | Cloud SQL   |       ~$10 | チーム利用、本番サービス |
+| **SQLite版**     | GCSマウント |        ~$0 | 個人利用、テスト         |
+
+> ⚠️ **SQLite版の注意事項**:
+>
+> - `max-instances=1` 必須（複数インスタンス不可）
+> - 同時リクエスト数が制限される
+> - GCS FUSEはSQLiteの公式サポート外のため、自己責任での運用
+
 ---
 
-## 初回セットアップ
+## 初回セットアップ（PostgreSQL版）
 
 ### 1. プロジェクト作成とAPI有効化
 
@@ -245,7 +258,7 @@ gcloud run deploy vca-server \
   --region=$REGION \
   --platform=managed \
   --allow-unauthenticated \
-  --set-env-vars="POSTGRES_SERVER=/cloudsql/$CONNECTION_NAME,POSTGRES_PORT=5432,POSTGRES_USER=$DB_USER,POSTGRES_DB=$DB_NAME,STORAGE_TYPE=gcs,GCS_BUCKET_NAME=$BUCKET_NAME,GCS_PROJECT_ID=$PROJECT_ID" \
+  --set-env-vars="DB_TYPE=postgres,POSTGRES_SERVER=/cloudsql/$CONNECTION_NAME,POSTGRES_PORT=5432,POSTGRES_USER=$DB_USER,POSTGRES_DB=$DB_NAME,STORAGE_TYPE=gcs,GCS_BUCKET_NAME=$BUCKET_NAME,GCS_PROJECT_ID=$PROJECT_ID" \
   --set-secrets="POSTGRES_PASSWORD=vca-db-password:latest" \
   --add-cloudsql-instances=$CONNECTION_NAME \
   --max-instances=10 \
@@ -256,7 +269,125 @@ gcloud run deploy vca-server \
 
 ---
 
-## 再デプロイ（コード変更後）
+## 初回セットアップ（SQLite + GCSマウント版）
+
+> ⚠️ **個人利用・テスト用途向け** Cloud
+> SQLを使用せず、GCSマウント上のSQLiteでデータを永続化します。
+> 維持費はほぼ0円ですが、スケーリングには制約があります。
+
+### 1. プロジェクト作成とAPI有効化
+
+```bash
+# プロジェクト作成
+gcloud projects create YOUR_PROJECT_ID --name="VCA Server"
+gcloud config set project YOUR_PROJECT_ID
+
+# 課金アカウント紐付け
+gcloud billing accounts list
+gcloud billing projects link YOUR_PROJECT_ID --billing-account=BILLING_ACCOUNT_ID
+
+# API有効化（Cloud SQL Adminは不要）
+gcloud services enable run.googleapis.com \
+  cloudbuild.googleapis.com \
+  storage.googleapis.com
+```
+
+### 2. 環境変数設定
+
+```bash
+export PROJECT_ID=$(gcloud config get-value project)
+export REGION=asia-northeast1
+# 音声ファイル用バケット
+export BUCKET_NAME="${PROJECT_ID}-vca-voices"
+# SQLite DB保存用バケット
+export DB_BUCKET_NAME="${PROJECT_ID}-vca-db"
+```
+
+### 3. GCS バケット セットアップ
+
+```bash
+# 音声用バケット
+gsutil mb -p $PROJECT_ID -c STANDARD -l $REGION gs://$BUCKET_NAME/
+
+# DB用バケット
+gsutil mb -p $PROJECT_ID -c STANDARD -l $REGION gs://$DB_BUCKET_NAME/
+```
+
+### 4. サービスアカウントへの権限付与
+
+```bash
+PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format="value(projectNumber)")
+SERVICE_ACCOUNT="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+
+# ストレージオブジェクトの読み書き権限を付与
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:$SERVICE_ACCOUNT" \
+  --role="roles/storage.objectAdmin"
+```
+
+### 5. コンテナイメージビルド
+
+```bash
+# 初回イメージビルド（まだ公開しない）
+gcloud run deploy vca-server \
+  --source . \
+  --region=$REGION \
+  --platform=managed \
+  --no-allow-unauthenticated
+
+# イメージURL取得
+IMAGE_URL=$(gcloud run services describe vca-server \
+  --region=$REGION \
+  --format="value(spec.template.spec.containers[0].image)")
+```
+
+### 6. マイグレーション用 Cloud Run Job 作成
+
+```bash
+gcloud run jobs create migration-upgrade-sqlite \
+  --image=$IMAGE_URL \
+  --region=$REGION \
+  --command="sh" \
+  --args="-c,cd /app && uv run alembic upgrade head" \
+  --add-volume="name=db-volume,type=cloud-storage,bucket=$DB_BUCKET_NAME" \
+  --add-volume-mount="volume=db-volume,mount-path=/app/db" \
+  --set-env-vars="DB_TYPE=sqlite,SQLITE_PATH=/app/db/vca.db" \
+  --max-retries=0 \
+  --task-timeout=300
+```
+
+### 7. マイグレーション実行
+
+```bash
+gcloud run jobs execute migration-upgrade-sqlite \
+  --region=$REGION \
+  --wait
+```
+
+### 8. Cloud Run デプロイ（外部公開）
+
+> **重要**: `max-instances=1`
+> でインスタンス数を制限し、SQLiteへの同時書き込みを防止します。
+
+```bash
+gcloud run deploy vca-server \
+  --image=$IMAGE_URL \
+  --region=$REGION \
+  --platform=managed \
+  --allow-unauthenticated \
+  --execution-environment=gen2 \
+  --add-volume="name=db-volume,type=cloud-storage,bucket=$DB_BUCKET_NAME" \
+  --add-volume-mount="volume=db-volume,mount-path=/app/db" \
+  --set-env-vars="DB_TYPE=sqlite,SQLITE_PATH=/app/db/vca.db,STORAGE_TYPE=gcs,GCS_BUCKET_NAME=$BUCKET_NAME,GCS_PROJECT_ID=$PROJECT_ID" \
+  --max-instances=1 \
+  --memory=2Gi \
+  --cpu=2 \
+  --timeout=300
+```
+
+---
+
+## 再デプロイ（コード変更後）- PostgreSQL版
 
 ### 環境変数再設定
 
@@ -299,21 +430,66 @@ gcloud run services update-traffic vca-server \
 
 ---
 
+## 再デプロイ（コード変更後）- SQLite版
+
+### 環境変数再設定
+
+```bash
+export PROJECT_ID=$(gcloud config get-value project)
+export REGION=asia-northeast1
+export BUCKET_NAME="${PROJECT_ID}-vca-voices"
+export DB_BUCKET_NAME="${PROJECT_ID}-vca-db"
+```
+
+### デプロイ手順
+
+```bash
+# 1. 新しいイメージをビルド（トラフィックはまだ流さない）
+gcloud run deploy vca-server \
+  --source . \
+  --region=$REGION \
+  --no-traffic
+
+# 2. イメージURL取得
+IMAGE_URL=$(gcloud run services describe vca-server \
+  --region=$REGION \
+  --format="value(spec.template.spec.containers[0].image)")
+
+# 3. マイグレーションJob更新
+gcloud run jobs update migration-upgrade-sqlite \
+  --image=$IMAGE_URL \
+  --region=$REGION
+
+# 4. マイグレーション実行
+gcloud run jobs execute migration-upgrade-sqlite \
+  --region=$REGION \
+  --wait
+
+# 5. トラフィックを新リビジョンに切り替え
+gcloud run services update-traffic vca-server \
+  --to-latest \
+  --region=$REGION
+```
+
+---
+
 ## 便利なコマンド
 
 ### ログ確認
 
 ```bash
 # サービスログ
-gcloud run logs read vca-server --region asia-northeast1 --limit=50
+gcloud run services logs read vca-server --region asia-northeast1 --limit=50
 
-# マイグレーションログ
+# マイグレーションログ（PostgreSQL版）
 gcloud logging read "resource.type=cloud_run_job AND resource.labels.job_name=migration-upgrade" \
   --limit=50 \
   --format="value(textPayload)"
 
-# リアルタイムログ
-gcloud run logs tail vca-server --region asia-northeast1
+# マイグレーションログ（SQLite版）
+gcloud logging read "resource.type=cloud_run_job AND resource.labels.job_name=migration-upgrade-sqlite" \
+  --limit=50 \
+  --format="value(textPayload)"
 ```
 
 ### サービス情報
@@ -376,13 +552,39 @@ gcloud run services update-traffic vca-server \
 
 ## アーキテクチャ
 
+### PostgreSQL版
+
 - **API**: Cloud Run (FastAPI)
 - **Database**: Cloud SQL (PostgreSQL 16)
+- **Storage**: GCS (音声ファイル)
 - **Secrets**: Secret Manager
+- **Migrations**: Cloud Run Jobs (Alembic)
+
+### SQLite版
+
+- **API**: Cloud Run (FastAPI)
+- **Database**: SQLite on GCS FUSE
+- **Storage**: GCS (音声ファイル + DBファイル)
 - **Migrations**: Cloud Run Jobs (Alembic)
 
 ## コスト概算（東京リージョン）
 
-- Cloud SQL (db-f1-micro): ~$10/月
-- Cloud Run: 従量課金（無料枠あり）
-- Secret Manager: ほぼ無料
+### PostgreSQL版
+
+| サービス                |             月額コスト |
+| ----------------------- | ---------------------: |
+| Cloud SQL (db-f1-micro) |                   ~$10 |
+| Cloud Run               | 従量課金（無料枠あり） |
+| Secret Manager          |               ほぼ無料 |
+| GCS                     |               ほぼ無料 |
+| **合計**                |            **~$10/月** |
+
+### SQLite版
+
+| サービス  |                       月額コスト |
+| --------- | -------------------------------: |
+| Cloud Run |           従量課金（無料枠あり） |
+| GCS       | ほぼ無料（数GB以下なら無料枠内） |
+| **合計**  |                       **~$0/月** |
+
+> SQLite版は個人利用の低トラフィック環境では、GCPの無料枠内で運用可能です。
