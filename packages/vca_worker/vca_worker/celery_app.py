@@ -25,8 +25,9 @@ celery_app.conf.update(
 # タスクモジュールを自動検出
 celery_app.autodiscover_tasks(["vca_worker.tasks"])
 
-# Whisperモデル（Worker起動時にロード）
+# モデル（Worker起動時にロード）
 _whisper_model = None
+_speaker_model = None
 
 
 def get_whisper_model():
@@ -40,14 +41,27 @@ def get_whisper_model():
     return _whisper_model
 
 
+def get_speaker_model():
+    """WeSpeaker話者モデルを取得.
+
+    Raises:
+        RuntimeError: モデルがロードされていない場合
+    """
+    if _speaker_model is None:
+        raise RuntimeError("Speaker model not loaded. Worker may not be initialized.")
+    return _speaker_model
+
+
 @worker_process_init.connect
 def init_worker(**kwargs: Any):
-    """Workerプロセス起動時にWhisperモデルをロード."""
-    global _whisper_model
+    """Workerプロセス起動時にモデルをロード."""
+    global _whisper_model, _speaker_model
+    import wespeakerruntime as wespeaker
     from faster_whisper import WhisperModel
 
-    from vca_worker.settings import whisper_settings
+    from vca_worker.settings import wespeaker_settings, whisper_settings
 
+    # Whisperモデルのロード
     logger.info(
         f"Loading Whisper model: {whisper_settings.WHISPER_MODEL_SIZE} "
         f"(device={whisper_settings.WHISPER_DEVICE}, "
@@ -61,3 +75,10 @@ def init_worker(**kwargs: Any):
     )
 
     logger.info("Whisper model loaded successfully")
+
+    # WeSpeakerモデルのロード
+    logger.info(f"Loading WeSpeaker model: lang={wespeaker_settings.WESPEAKER_LANG}")
+
+    _speaker_model = wespeaker.Speaker(lang=wespeaker_settings.WESPEAKER_LANG)
+
+    logger.info("WeSpeaker model loaded successfully")

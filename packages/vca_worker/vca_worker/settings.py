@@ -12,6 +12,13 @@ class WhisperSettings(BaseSettings):
     model_config = {"env_prefix": ""}
 
 
-whisper_settings = WhisperSettings()
+class WeSpeakerSettings(BaseSettings):
+    """WeSpeaker設定."""
 
-__all__ = ["WhisperSettings", "whisper_settings"]
+    WESPEAKER_LANG: str = "en"
+
+    model_config = {"env_prefix": ""}
+
+
+whisper_settings = WhisperSettings()
+wespeaker_settings = WeSpeakerSettings()

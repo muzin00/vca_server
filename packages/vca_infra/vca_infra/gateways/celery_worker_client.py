@@ -49,8 +49,10 @@ class CeleryWorkerClient(WorkerClientProtocol):
             audio_bytes: 音声データ
 
         Returns:
-            声紋ベクトル（256次元）
+            声紋ベクトル（256次元のfloat32、1024バイト）
         """
-        # TODO: Resemblyzer実装後に追加
-        logger.warning("Voiceprint extraction not implemented, using stub")
-        return b"\x00" * 256 * 4  # 256次元のfloat32のダミー
+        logger.info(f"Sending extract_voiceprint task: {len(audio_bytes)} bytes")
+        result = self._app.send_task("extract_voiceprint", args=[audio_bytes])
+        embedding: bytes = result.get(timeout=VOICEPRINT_TIMEOUT)
+        logger.info(f"Voiceprint extraction complete: {len(embedding)} bytes")
+        return embedding

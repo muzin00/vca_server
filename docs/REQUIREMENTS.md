@@ -33,7 +33,7 @@
 | タスクキュー         | Celery         |
 | メッセージブローカー | Redis          |
 | 文字起こし           | faster-whisper |
-| 声紋抽出             | Resemblyzer    |
+| 声紋抽出             | WeSpeaker      |
 | データベース         | PostgreSQL     |
 | ストレージ           | GCS / ローカル |
 | 処理方式             | 同期処理       |
@@ -49,7 +49,7 @@
 └──────────────────────────────────────┘
        ↓
 ┌──────────────────────────────────────┐
-│  2. 声紋抽出（Resemblyzer）           │
+│  2. 声紋抽出（WeSpeaker）             │
 │     → 256次元特徴量ベクトル生成      │
 └──────────────────────────────────────┘
        ↓
@@ -69,7 +69,7 @@
 | FR-1 | 話者登録       | speaker_id、パスフレーズ、声紋を登録   |
 | FR-2 | 文字起こし     | faster-whisperで音声→テキスト変換      |
 | FR-3 | テキスト正規化 | 小文字化、句読点除去、空白正規化       |
-| FR-4 | 声紋抽出       | Resemblyzerで256次元ベクトル抽出       |
+| FR-4 | 声紋抽出       | WeSpeakerで256次元ベクトル抽出         |
 | FR-5 | 声紋照合       | コサイン類似度でしきい値判定           |
 | FR-6 | 認証判定       | パスフレーズ一致 AND 声紋OK で成功     |
 | FR-7 | 話者識別       | 登録済み話者から最も類似する話者を特定 |
@@ -78,7 +78,7 @@
 
 ```
 faster-whisper
-resemblyzer
+wespeakerruntime
 numpy
 ```
 
@@ -99,12 +99,12 @@ numpy
 
 ### コンテナ構成
 
-| コンテナ   | 役割                 | 主要パッケージ                      |
-| ---------- | -------------------- | ----------------------------------- |
-| vca_api    | REST API             | FastAPI                             |
-| vca_worker | 音声処理ワーカー     | Celery, faster-whisper, Resemblyzer |
-| Redis      | メッセージブローカー | -                                   |
-| PostgreSQL | データベース         | -                                   |
+| コンテナ   | 役割                 | 主要パッケージ                    |
+| ---------- | -------------------- | --------------------------------- |
+| vca_api    | REST API             | FastAPI                           |
+| vca_worker | 音声処理ワーカー     | Celery, faster-whisper, WeSpeaker |
+| Redis      | メッセージブローカー | -                                 |
+| PostgreSQL | データベース         | -                                 |
 
 ### パッケージ構成
 
@@ -138,7 +138,7 @@ numpy
 ┌─────────────────────────────────────────────────────────┐
 │  vca_worker（Workerコンテナ）                            │
 │  4. 文字起こし（faster-whisper）                         │
-│  5. 声紋抽出（Resemblyzer）                              │
+│  5. 声紋抽出（WeSpeaker）                                │
 │  6. 結果を返却 ─────────────────────────────┐            │
 └─────────────────────────────────────────────│────────────┘
                                                │
@@ -158,7 +158,7 @@ numpy
 | タスク名           | 入力        | 出力                      | 説明                       |
 | ------------------ | ----------- | ------------------------- | -------------------------- |
 | transcribe         | audio_bytes | str（文字起こしテキスト） | faster-whisperで文字起こし |
-| extract_voiceprint | audio_bytes | bytes（256次元ベクトル）  | Resemblyzerで声紋抽出      |
+| extract_voiceprint | audio_bytes | bytes（256次元ベクトル）  | WeSpeakerで声紋抽出        |
 
 ### vca_worker 構成
 
@@ -173,7 +173,7 @@ vca_worker/
   services/
     __init__.py
     transcription_service.py  # faster-whisper wrapper
-    voiceprint_service.py     # Resemblyzer wrapper
+    voiceprint_service.py     # WeSpeaker wrapper
 ```
 
 ## データモデル
@@ -352,23 +352,25 @@ def normalize_text(text: str) -> str:
 
 ## 声紋照合の詳細
 
-### Resemblyzer
+### WeSpeaker
 
+- **モデル**: ResNet34（VoxCeleb/CNCelebで事前学習済み）
 - **出力**: 256次元の特徴量ベクトル
-- **類似度計算**: コサイン類似度（内積）
-- **しきい値**: 0.75（調整可能）
+- **類似度計算**: コサイン類似度
+- **しきい値**: 0.5（調整可能）
+- **GitHub**: https://github.com/wenet-e2e/wespeaker
 
 ```python
-from resemblyzer import VoiceEncoder, preprocess_wav
+import wespeakerruntime as wespeaker
 import numpy as np
 
-encoder = VoiceEncoder()
+# モデルのロード（言語: 'en' or 'chs'）
+speaker = wespeaker.Speaker(lang='en')
 
 # 声紋抽出
-wav = preprocess_wav(audio_path)
-embedding = encoder.embed_utterance(wav)  # shape: (256,)
+embedding = speaker.extract_embedding('audio.wav')  # shape: (256,)
 
 # 類似度計算
-similarity = np.dot(embedding1, embedding2)  # -1.0 ~ 1.0
-is_same_speaker = similarity >= 0.75
+score = speaker.compute_cosine_score(embedding1, embedding2)
+is_same_speaker = score >= 0.5
 ```
