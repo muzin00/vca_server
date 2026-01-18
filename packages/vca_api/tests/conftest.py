@@ -17,13 +17,20 @@ from vca_infra.storages import LocalStorage
 class MockWorkerClient(WorkerClientProtocol):
     """テスト用のモックWorkerClient."""
 
-    def transcribe(self, audio_bytes: bytes) -> str:
+    def transcribe(self, audio_bytes: bytes, audio_format: str = "wav") -> str:
         """モック文字起こし."""
         return "mock_passphrase"
 
-    def extract_voiceprint(self, audio_bytes: bytes) -> bytes:
+    def extract_voiceprint(
+        self, audio_bytes: bytes, audio_format: str = "wav"
+    ) -> bytes:
         """モック声紋抽出."""
         return b"\x00" * 256 * 4
+
+    def compare_voiceprints(self, embedding1: bytes, embedding2: bytes) -> float:
+        """モック声紋比較."""
+        # 常に高い類似度を返す（テスト成功用）
+        return 0.95
 
 
 @pytest.fixture(name="session")
@@ -77,8 +84,11 @@ def client_fixture(
 @pytest.fixture(name="registered_speaker")
 def registered_speaker_fixture(session: Session) -> Speaker:
     """登録済み話者を作成するfixture."""
+    from vca_infra.repositories import VoiceprintRepository
+
     speaker_repo = SpeakerRepository(session)
     passphrase_repo = PassphraseRepository(session)
+    voiceprint_repo = VoiceprintRepository(session)
 
     # 話者を作成
     speaker = speaker_repo.create(
@@ -91,6 +101,13 @@ def registered_speaker_fixture(session: Session) -> Speaker:
         speaker_id=speaker.id,
         voice_sample_id=1,  # ダミー値
         phrase="mock_passphrase",
+    )
+
+    # 声紋を登録（MockWorkerClientが返すダミー声紋）
+    voiceprint_repo.create(
+        speaker_id=speaker.id,
+        voice_sample_id=1,  # ダミー値
+        embedding=b"\x00" * 256 * 4,
     )
 
     return speaker

@@ -54,3 +54,20 @@ class DirectWorkerClient(WorkerClientProtocol):
         embedding = service.extract(audio_bytes, audio_format)
         logger.info(f"Voiceprint extraction complete: {len(embedding)} bytes")
         return embedding
+
+    def compare_voiceprints(self, embedding1: bytes, embedding2: bytes) -> float:
+        """2つの声紋を比較し類似度を返す.
+
+        Args:
+            embedding1: 声紋ベクトル1
+            embedding2: 声紋ベクトル2
+
+        Returns:
+            コサイン類似度（0.0〜1.0）
+        """
+        logger.info("Comparing voiceprints")
+        speaker = get_speaker_model()
+        service = VoiceprintService(speaker)
+        similarity = service.compare(embedding1, embedding2)
+        logger.info(f"Voiceprint comparison complete: similarity={similarity:.4f}")
+        return similarity

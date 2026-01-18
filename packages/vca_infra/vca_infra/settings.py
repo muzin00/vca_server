@@ -70,8 +70,19 @@ class WeSpeakerSettings(BaseSettings):
     model_config = {"env_prefix": ""}
 
 
+class VoiceprintSettings(BaseSettings):
+    """声紋認証設定."""
+
+    # 声紋類似度の閾値（0.0〜1.0）
+    # この値以上の類似度で声紋一致と判定
+    VOICEPRINT_SIMILARITY_THRESHOLD: float = 0.7
+
+    model_config = {"env_prefix": ""}
+
+
 db_settings = DatabaseSettings()
 storage_settings = StorageSettings()
 celery_settings = CelerySettings()
 whisper_settings = WhisperSettings()
 wespeaker_settings = WeSpeakerSettings()
+voiceprint_settings = VoiceprintSettings()

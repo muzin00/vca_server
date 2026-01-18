@@ -82,3 +82,40 @@ class VoiceprintService:
         """
         # float32でパック
         return struct.pack(f"{self.EMBEDDING_DIM}f", *embedding.flatten())
+
+    def _bytes_to_embedding(self, data: bytes) -> NDArray[np.float32]:
+        """bytesをnumpy配列に変換.
+
+        Args:
+            data: bytes（256 * 4 = 1024バイト）
+
+        Returns:
+            numpy配列（256次元のfloat32）
+        """
+        values = struct.unpack(f"{self.EMBEDDING_DIM}f", data)
+        return np.array(values, dtype=np.float32)
+
+    def compare(self, embedding1: bytes, embedding2: bytes) -> float:
+        """2つの声紋のコサイン類似度を計算.
+
+        Args:
+            embedding1: 声紋ベクトル1（bytes）
+            embedding2: 声紋ベクトル2（bytes）
+
+        Returns:
+            コサイン類似度（0.0〜1.0）
+        """
+        vec1 = self._bytes_to_embedding(embedding1)
+        vec2 = self._bytes_to_embedding(embedding2)
+
+        # コサイン類似度
+        dot_product = np.dot(vec1, vec2)
+        norm1 = np.linalg.norm(vec1)
+        norm2 = np.linalg.norm(vec2)
+
+        if norm1 == 0 or norm2 == 0:
+            return 0.0
+
+        similarity = float(dot_product / (norm1 * norm2))
+        logger.info(f"Voice similarity: {similarity:.4f}")
+        return similarity

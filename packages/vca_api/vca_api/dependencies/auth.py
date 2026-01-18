@@ -12,6 +12,7 @@ from vca_infra.repositories import (
     VoiceSampleRepository,
 )
 from vca_infra.session import get_session
+from vca_infra.settings import voiceprint_settings
 
 from vca_api.dependencies.storage import get_storage
 from vca_api.dependencies.worker import get_worker_client
@@ -35,5 +36,6 @@ def get_auth_service(
         passphrase_repository=passphrase_repository,
         storage=storage,
         worker_client=worker_client,
+        voice_similarity_threshold=voiceprint_settings.VOICEPRINT_SIMILARITY_THRESHOLD,
     )
     yield service

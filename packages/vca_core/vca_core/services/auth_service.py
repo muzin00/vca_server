@@ -48,6 +48,7 @@ class AuthService:
         passphrase_repository: PassphraseRepositoryProtocol,
         storage: StorageProtocol,
         worker_client: WorkerClientProtocol,
+        voice_similarity_threshold: float,
     ):
         self.speaker_repository = speaker_repository
         self.voice_sample_repository = voice_sample_repository
@@ -55,6 +56,7 @@ class AuthService:
         self.passphrase_repository = passphrase_repository
         self.storage = storage
         self.worker_client = worker_client
+        self.voice_similarity_threshold = voice_similarity_threshold
 
     def register(
         self,
@@ -217,17 +219,30 @@ class AuthService:
         passphrase_match = transcribed_text in registered_phrases
         logger.info(f"Passphrase match: {passphrase_match}")
 
-        # 6. 声紋比較（TODO: 未実装、スタブ値）
-        voice_similarity = 0.85
+        # 6. 声紋抽出
+        input_embedding = self._extract_voiceprint(audio_bytes, audio_format)
 
-        # 7. 認証判定
-        # 現在はパスフレーズ一致のみで判定（声紋比較は未実装）
-        authenticated = passphrase_match
+        # 7. 登録済み声紋を取得して比較
+        voiceprints = self.voiceprint_repository.get_by_speaker_id(speaker.id)
+        voice_similarity = 0.0
+        if voiceprints:
+            similarities = [
+                self.worker_client.compare_voiceprints(input_embedding, vp.embedding)
+                for vp in voiceprints
+            ]
+            voice_similarity = max(similarities)  # 最も高い類似度を採用
+        logger.info(f"Voice similarity: {voice_similarity:.4f}")
+
+        # 8. 認証判定（パスフレーズ + 声紋の両方が必要）
+        voice_match = voice_similarity >= self.voice_similarity_threshold
+        authenticated = passphrase_match and voice_match
 
         if authenticated:
             message = "認証成功"
-        else:
+        elif not passphrase_match:
             message = "認証失敗: パスフレーズが一致しません"
+        else:
+            message = f"認証失敗: 声紋が一致しません（類似度: {voice_similarity:.2f}）"
 
         return AuthVerifyResult(
             authenticated=authenticated,

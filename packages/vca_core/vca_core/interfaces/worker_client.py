@@ -29,3 +29,15 @@ class WorkerClientProtocol(Protocol):
             声紋ベクトル（256次元）
         """
         ...
+
+    def compare_voiceprints(self, embedding1: bytes, embedding2: bytes) -> float:
+        """2つの声紋を比較し類似度を返す.
+
+        Args:
+            embedding1: 声紋ベクトル1
+            embedding2: 声紋ベクトル2
+
+        Returns:
+            コサイン類似度（0.0〜1.0）
+        """
+        ...
