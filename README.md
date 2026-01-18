@@ -249,8 +249,8 @@ gcloud run deploy vca-server \
   --set-secrets="POSTGRES_PASSWORD=vca-db-password:latest" \
   --add-cloudsql-instances=$CONNECTION_NAME \
   --max-instances=10 \
-  --memory=512Mi \
-  --cpu=1 \
+  --memory=2Gi \
+  --cpu=2 \
   --timeout=300
 ```
 
