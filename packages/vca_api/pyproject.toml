@@ -7,13 +7,11 @@ dependencies = [
     "pydantic-settings",
     "vca-core",
     "vca-infra",
-    "vca-worker",
 ]
 
 [tool.uv.sources]
 vca-core = { workspace = true }
 vca-infra = { workspace = true }
-vca-worker = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

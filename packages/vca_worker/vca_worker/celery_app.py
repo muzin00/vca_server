@@ -3,8 +3,7 @@ from typing import Any
 
 from celery import Celery
 from celery.signals import worker_process_init
-
-from vca_worker.settings import celery_settings
+from vca_infra.settings import celery_settings
 
 logger = logging.getLogger(__name__)
 

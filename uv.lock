@@ -2289,7 +2289,6 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "vca-core" },
     { name = "vca-infra" },
-    { name = "vca-worker" },
 ]
 
 [package.metadata]
@@ -2298,7 +2297,6 @@ requires-dist = [
     { name = "pydantic-settings" },
     { name = "vca-core", editable = "packages/vca_core" },
     { name = "vca-infra", editable = "packages/vca_infra" },
-    { name = "vca-worker", editable = "packages/vca_worker" },
 ]
 
 [[package]]
@@ -2324,6 +2322,7 @@ version = "0.1.0"
 source = { editable = "packages/vca_infra" }
 dependencies = [
     { name = "alembic" },
+    { name = "celery" },
     { name = "google-cloud-storage" },
     { name = "psycopg2-binary" },
     { name = "pydantic-settings" },
@@ -2334,6 +2333,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "alembic" },
+    { name = "celery" },
     { name = "google-cloud-storage", specifier = ">=3.7.0" },
     { name = "psycopg2-binary" },
     { name = "pydantic-settings" },
@@ -2354,6 +2354,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "celery-types" },
     { name = "coverage" },
     { name = "pre-commit" },
     { name = "pyright" },
@@ -2372,6 +2373,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "celery-types", specifier = ">=0.24.0" },
     { name = "coverage", specifier = ">=7.6.10" },
     { name = "pre-commit", specifier = ">=4.1.0" },
     { name = "pyright", specifier = ">=1.1.408" },
@@ -2386,7 +2388,6 @@ version = "0.1.0"
 source = { editable = "packages/vca_worker" }
 dependencies = [
     { name = "celery", extra = ["redis"] },
-    { name = "celery-types" },
     { name = "faster-whisper" },
     { name = "pydantic-settings" },
     { name = "vca-core" },
@@ -2396,7 +2397,6 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "celery", extras = ["redis"], specifier = ">=5.6.2" },
-    { name = "celery-types", specifier = ">=0.24.0" },
     { name = "faster-whisper", specifier = ">=1.2.1" },
     { name = "pydantic-settings", specifier = ">=2.0.0" },
     { name = "vca-core", editable = "packages/vca_core" },
