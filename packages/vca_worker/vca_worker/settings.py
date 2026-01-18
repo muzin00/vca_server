@@ -8,6 +8,7 @@ class WhisperSettings(BaseSettings):
     WHISPER_DEVICE: str = "cpu"
     WHISPER_COMPUTE_TYPE: str = "int8"
     WHISPER_LANGUAGE: str = "ja"
+    WHISPER_LOCAL_FILES_ONLY: bool = True
 
     model_config = {"env_prefix": ""}
 

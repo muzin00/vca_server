@@ -65,13 +65,15 @@ def init_worker(**kwargs: Any):
     logger.info(
         f"Loading Whisper model: {whisper_settings.WHISPER_MODEL_SIZE} "
         f"(device={whisper_settings.WHISPER_DEVICE}, "
-        f"compute_type={whisper_settings.WHISPER_COMPUTE_TYPE})"
+        f"compute_type={whisper_settings.WHISPER_COMPUTE_TYPE}, "
+        f"local_files_only={whisper_settings.WHISPER_LOCAL_FILES_ONLY})"
     )
 
     _whisper_model = WhisperModel(
         whisper_settings.WHISPER_MODEL_SIZE,
         device=whisper_settings.WHISPER_DEVICE,
         compute_type=whisper_settings.WHISPER_COMPUTE_TYPE,
+        local_files_only=whisper_settings.WHISPER_LOCAL_FILES_ONLY,
     )
 
     logger.info("Whisper model loaded successfully")
