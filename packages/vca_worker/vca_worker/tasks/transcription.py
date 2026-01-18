@@ -1,8 +1,10 @@
 import logging
 
-from vca_worker.celery_app import celery_app, get_whisper_model
-from vca_worker.services.transcription_service import TranscriptionService
-from vca_worker.utils.text_normalizer import normalize_text
+from vca_core.utils import normalize_text
+from vca_infra.model_loader import get_whisper_model
+from vca_infra.services import TranscriptionService
+
+from vca_worker.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 

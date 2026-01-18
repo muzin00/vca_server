@@ -2,8 +2,10 @@
 
 import logging
 
-from vca_worker.celery_app import celery_app, get_speaker_model
-from vca_worker.services.voiceprint_service import VoiceprintService
+from vca_infra.model_loader import get_speaker_model
+from vca_infra.services import VoiceprintService
+
+from vca_worker.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
