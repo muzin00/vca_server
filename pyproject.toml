@@ -2,7 +2,7 @@
 name = "vca-server"
 version = "0.1.0"
 description = "VCA Server"
-requires-python = ">=3.11,<4.0"
+requires-python = ">=3.11,<3.12"
 dependencies = ["vca-api", "vca-infra", "vca-core", "vca-worker"]
 
 [tool.uv]

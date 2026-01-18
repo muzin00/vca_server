@@ -1,7 +1,7 @@
 [project]
 name = "vca-core"
 version = "0.1.0"
-requires-python = ">=3.11,<4.0"
+requires-python = ">=3.11,<3.12"
 dependencies = ["sqlmodel", "pydantic", "python-ulid>=3.1.0"]
 
 [build-system]
