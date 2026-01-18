@@ -4,6 +4,7 @@ from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from vca_core.exceptions import NotFoundError
 from vca_infra.model_loader import load_models
@@ -48,6 +49,12 @@ if STATIC_DIR.exists():
 # ルーター登録
 app.include_router(auth_router)
 app.include_router(demo_router)
+
+
+@app.get("/")
+def redirect_to_demo() -> RedirectResponse:
+    """ルートパスからデモページへリダイレクト."""
+    return RedirectResponse(url="/demo")
 
 
 @app.get("/health")
