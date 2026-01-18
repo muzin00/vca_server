@@ -29,7 +29,8 @@ RUN uv sync --frozen --package vca-worker
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH=/app
 
-# Pre-download WeSpeaker model to avoid race condition at runtime
+# Pre-download models to avoid race condition at runtime
 RUN python -c "import wespeakerruntime; wespeakerruntime.Speaker(lang='en')"
+RUN python -c "from faster_whisper import WhisperModel; WhisperModel('small', device='cpu', compute_type='int8')"
 
 CMD ["celery", "-A", "vca_worker.celery_app", "worker", "--loglevel=info"]
