@@ -380,7 +380,8 @@ gcloud run deploy vca-server \
   --add-volume-mount="volume=db-volume,mount-path=/app/db" \
   --set-env-vars="DB_TYPE=sqlite,SQLITE_PATH=/app/db/vca.db,STORAGE_TYPE=gcs,GCS_BUCKET_NAME=$BUCKET_NAME,GCS_PROJECT_ID=$PROJECT_ID" \
   --max-instances=1 \
-  --memory=2Gi \
+  --memory=4Gi \
+  --cpu-boost \
   --cpu=2 \
   --timeout=300
 ```
