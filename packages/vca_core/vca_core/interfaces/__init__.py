@@ -3,7 +3,6 @@ from vca_core.interfaces.speaker_repository import SpeakerRepositoryProtocol
 from vca_core.interfaces.storage import StorageProtocol
 from vca_core.interfaces.voice_sample_repository import VoiceSampleRepositoryProtocol
 from vca_core.interfaces.voiceprint_repository import VoiceprintRepositoryProtocol
-from vca_core.interfaces.worker_client import WorkerClientProtocol
 
 __all__ = [
     "PassphraseRepositoryProtocol",
@@ -11,5 +10,4 @@ __all__ = [
     "StorageProtocol",
     "VoiceSampleRepositoryProtocol",
     "VoiceprintRepositoryProtocol",
-    "WorkerClientProtocol",
 ]

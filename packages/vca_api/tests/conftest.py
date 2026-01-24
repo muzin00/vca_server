@@ -5,29 +5,33 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 from vca_api.dependencies.storage import get_storage
-from vca_api.dependencies.worker import get_worker_client
 from vca_api.main import app
-from vca_core.interfaces.worker_client import WorkerClientProtocol
 from vca_core.models import Speaker
+from vca_core.services.auth_service import (
+    TranscriptionServiceProtocol,
+    VoiceprintServiceProtocol,
+)
 from vca_infra.repositories import PassphraseRepository, SpeakerRepository
 from vca_infra.session import get_session
 from vca_infra.storages import LocalStorage
 
 
-class MockWorkerClient(WorkerClientProtocol):
-    """テスト用のモックWorkerClient."""
+class MockTranscriptionService(TranscriptionServiceProtocol):
+    """テスト用のモック文字起こしサービス."""
 
     def transcribe(self, audio_bytes: bytes, audio_format: str = "wav") -> str:
         """モック文字起こし."""
         return "mock_passphrase"
 
-    def extract_voiceprint(
-        self, audio_bytes: bytes, audio_format: str = "wav"
-    ) -> bytes:
+
+class MockVoiceprintService(VoiceprintServiceProtocol):
+    """テスト用のモック声紋サービス."""
+
+    def extract(self, audio_bytes: bytes, audio_format: str = "wav") -> bytes:
         """モック声紋抽出."""
         return b"\x00" * 256 * 4
 
-    def compare_voiceprints(self, embedding1: bytes, embedding2: bytes) -> float:
+    def compare(self, embedding1: bytes, embedding2: bytes) -> float:
         """モック声紋比較."""
         # 常に高い類似度を返す（テスト成功用）
         return 0.95
@@ -52,17 +56,35 @@ def storage_fixture(tmp_path: Path) -> LocalStorage:
     return LocalStorage(base_path=str(tmp_path / "voices"))
 
 
-@pytest.fixture(name="worker_client")
-def worker_client_fixture() -> MockWorkerClient:
-    """テスト用のモックWorkerClient."""
-    return MockWorkerClient()
+@pytest.fixture(name="transcription_service")
+def transcription_service_fixture() -> MockTranscriptionService:
+    """テスト用のモック文字起こしサービス."""
+    return MockTranscriptionService()
+
+
+@pytest.fixture(name="voiceprint_service")
+def voiceprint_service_fixture() -> MockVoiceprintService:
+    """テスト用のモック声紋サービス."""
+    return MockVoiceprintService()
 
 
 @pytest.fixture(name="client")
 def client_fixture(
-    session: Session, storage: LocalStorage, worker_client: MockWorkerClient
+    session: Session,
+    storage: LocalStorage,
+    transcription_service: MockTranscriptionService,
+    voiceprint_service: MockVoiceprintService,
 ):
     """テスト用クライアント（依存性オーバーライド付き）."""
+    from vca_api.dependencies.auth import get_auth_service
+    from vca_core.services.auth_service import AuthService
+    from vca_infra.repositories import (
+        PassphraseRepository,
+        SpeakerRepository,
+        VoiceprintRepository,
+        VoiceSampleRepository,
+    )
+    from vca_infra.settings import voiceprint_settings
 
     def get_session_override():
         return session
@@ -70,12 +92,26 @@ def client_fixture(
     def get_storage_override():
         return storage
 
-    def get_worker_client_override():
-        return worker_client
+    def get_auth_service_override():
+        speaker_repository = SpeakerRepository(session)
+        voice_sample_repository = VoiceSampleRepository(session)
+        voiceprint_repository = VoiceprintRepository(session)
+        passphrase_repository = PassphraseRepository(session)
+
+        return AuthService(
+            speaker_repository=speaker_repository,
+            voice_sample_repository=voice_sample_repository,
+            voiceprint_repository=voiceprint_repository,
+            passphrase_repository=passphrase_repository,
+            storage=storage,
+            transcription_service=transcription_service,
+            voiceprint_service=voiceprint_service,
+            voice_similarity_threshold=voiceprint_settings.VOICEPRINT_SIMILARITY_THRESHOLD,
+        )
 
     app.dependency_overrides[get_session] = get_session_override
     app.dependency_overrides[get_storage] = get_storage_override
-    app.dependency_overrides[get_worker_client] = get_worker_client_override
+    app.dependency_overrides[get_auth_service] = get_auth_service_override
     client = TestClient(app)
     yield client
     app.dependency_overrides.clear()
@@ -96,14 +132,14 @@ def registered_speaker_fixture(session: Session) -> Speaker:
     )
     assert speaker.id is not None
 
-    # パスフレーズを登録（mock_passphraseはMockWorkerClientが返す値）
+    # パスフレーズを登録（mock_passphraseはMockTranscriptionServiceが返す値）
     passphrase_repo.create(
         speaker_id=speaker.id,
         voice_sample_id=1,  # ダミー値
         phrase="mock_passphrase",
     )
 
-    # 声紋を登録（MockWorkerClientが返すダミー声紋）
+    # 声紋を登録（MockVoiceprintServiceが返すダミー声紋）
     voiceprint_repo.create(
         speaker_id=speaker.id,
         voice_sample_id=1,  # ダミー値

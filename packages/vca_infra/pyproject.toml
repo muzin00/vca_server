@@ -8,7 +8,6 @@ dependencies = [
     "alembic",
     "pydantic-settings",
     "vca-core",
-    "celery",
     "google-cloud-storage>=3.7.0",
     "faster-whisper>=1.2.1",
     "wespeakerruntime>=1.0.1",

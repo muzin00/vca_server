@@ -1,6 +1,7 @@
 import base64
 import logging
 from dataclasses import dataclass
+from typing import Protocol
 from uuid import uuid4
 
 from vca_core.constants import MAX_AUDIO_SIZE
@@ -10,12 +11,31 @@ from vca_core.interfaces.speaker_repository import SpeakerRepositoryProtocol
 from vca_core.interfaces.storage import StorageProtocol
 from vca_core.interfaces.voice_sample_repository import VoiceSampleRepositoryProtocol
 from vca_core.interfaces.voiceprint_repository import VoiceprintRepositoryProtocol
-from vca_core.interfaces.worker_client import WorkerClientProtocol
 from vca_core.models import Passphrase, Speaker, Voiceprint, VoiceSample
 
 logger = logging.getLogger(__name__)
 
 MAX_PASSPHRASES_PER_SPEAKER = 3
+
+
+class TranscriptionServiceProtocol(Protocol):
+    """文字起こしサービスのプロトコル."""
+
+    def transcribe(self, audio_bytes: bytes, audio_format: str = "wav") -> str:
+        """音声を文字起こし."""
+        ...
+
+
+class VoiceprintServiceProtocol(Protocol):
+    """声紋サービスのプロトコル."""
+
+    def extract(self, audio_bytes: bytes, audio_format: str = "wav") -> bytes:
+        """声紋を抽出."""
+        ...
+
+    def compare(self, embedding1: bytes, embedding2: bytes) -> float:
+        """2つの声紋を比較."""
+        ...
 
 
 @dataclass
@@ -48,7 +68,8 @@ class AuthService:
         voiceprint_repository: VoiceprintRepositoryProtocol,
         passphrase_repository: PassphraseRepositoryProtocol,
         storage: StorageProtocol,
-        worker_client: WorkerClientProtocol,
+        transcription_service: TranscriptionServiceProtocol,
+        voiceprint_service: VoiceprintServiceProtocol,
         voice_similarity_threshold: float,
     ):
         self.speaker_repository = speaker_repository
@@ -56,7 +77,8 @@ class AuthService:
         self.voiceprint_repository = voiceprint_repository
         self.passphrase_repository = passphrase_repository
         self.storage = storage
-        self.worker_client = worker_client
+        self.transcription_service = transcription_service
+        self.voiceprint_service = voiceprint_service
         self.voice_similarity_threshold = voice_similarity_threshold
 
     def register(
@@ -97,10 +119,10 @@ class AuthService:
         assert voice_sample.id is not None
         logger.info(f"VoiceSample created: {voice_sample.public_id}")
 
-        # 6. 文字起こし（TODO: Phase 3で実装）
+        # 6. 文字起こし
         detected_passphrase = self._transcribe_audio(audio_bytes, audio_format)
 
-        # 7. 声紋抽出（TODO: Phase 3で実装）
+        # 7. 声紋抽出
         embedding = self._extract_voiceprint(audio_bytes, audio_format)
 
         # 8. Passphrase をDBに保存
@@ -229,7 +251,7 @@ class AuthService:
         voice_similarity = 0.0
         if voiceprints:
             similarities = [
-                self.worker_client.compare_voiceprints(input_embedding, vp.embedding)
+                self.voiceprint_service.compare(input_embedding, vp.embedding)
                 for vp in voiceprints
             ]
             voice_similarity = max(similarities)  # 最も高い類似度を採用
@@ -257,8 +279,11 @@ class AuthService:
 
     def _transcribe_audio(self, audio_bytes: bytes, audio_format: str) -> str:
         """音声を文字起こし."""
-        return self.worker_client.transcribe(audio_bytes, audio_format)
+        from vca_core.utils import normalize_text
+
+        text = self.transcription_service.transcribe(audio_bytes, audio_format)
+        return normalize_text(text)
 
     def _extract_voiceprint(self, audio_bytes: bytes, audio_format: str) -> bytes:
         """声紋を抽出."""
-        return self.worker_client.extract_voiceprint(audio_bytes, audio_format)
+        return self.voiceprint_service.extract(audio_bytes, audio_format)

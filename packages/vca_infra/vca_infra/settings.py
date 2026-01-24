@@ -41,15 +41,6 @@ class StorageSettings(BaseSettings):
     GCS_PROJECT_ID: str | None = None
 
 
-class CelerySettings(BaseSettings):
-    """Celery設定."""
-
-    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
-    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
-
-    model_config = {"env_prefix": ""}
-
-
 class WhisperSettings(BaseSettings):
     """Whisperモデル設定."""
 
@@ -82,7 +73,6 @@ class VoiceprintSettings(BaseSettings):
 
 db_settings = DatabaseSettings()
 storage_settings = StorageSettings()
-celery_settings = CelerySettings()
 whisper_settings = WhisperSettings()
 wespeaker_settings = WeSpeakerSettings()
 voiceprint_settings = VoiceprintSettings()
