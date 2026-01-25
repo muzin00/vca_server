@@ -53,10 +53,11 @@ class WhisperSettings(BaseSettings):
     model_config = {"env_prefix": ""}
 
 
-class WeSpeakerSettings(BaseSettings):
-    """WeSpeaker設定."""
+class SherpaOnnxSettings(BaseSettings):
+    """sherpa-onnx声紋抽出設定."""
 
-    WESPEAKER_LANG: str = "en"
+    SPEAKER_MODEL_PATH: str = "models/3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx"
+    SPEAKER_NUM_THREADS: int = 1
 
     model_config = {"env_prefix": ""}
 
@@ -74,5 +75,5 @@ class VoiceprintSettings(BaseSettings):
 db_settings = DatabaseSettings()
 storage_settings = StorageSettings()
 whisper_settings = WhisperSettings()
-wespeaker_settings = WeSpeakerSettings()
+sherpa_onnx_settings = SherpaOnnxSettings()
 voiceprint_settings = VoiceprintSettings()

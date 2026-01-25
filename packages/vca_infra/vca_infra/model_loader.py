@@ -1,18 +1,17 @@
 """機械学習モデルのロード処理."""
 
 import logging
-from typing import Any
 
-import wespeakerruntime as wespeaker
+import sherpa_onnx
 from faster_whisper import WhisperModel
 
-from vca_infra.settings import wespeaker_settings, whisper_settings
+from vca_infra.settings import sherpa_onnx_settings, whisper_settings
 
 logger = logging.getLogger(__name__)
 
 # モデルのシングルトンインスタンス
 _whisper_model: WhisperModel | None = None
-_speaker_model: Any | None = None
+_speaker_extractor: sherpa_onnx.SpeakerEmbeddingExtractor | None = None
 
 
 def get_whisper_model() -> WhisperModel:
@@ -29,28 +28,28 @@ def get_whisper_model() -> WhisperModel:
     return _whisper_model
 
 
-def get_speaker_model() -> Any:
-    """WeSpeaker話者モデルを取得.
+def get_speaker_extractor() -> sherpa_onnx.SpeakerEmbeddingExtractor:
+    """sherpa-onnx話者埋め込みエクストラクタを取得.
 
     Returns:
-        Speaker: WeSpeakerモデルインスタンス
+        SpeakerEmbeddingExtractor: sherpa-onnxエクストラクタインスタンス
 
     Raises:
         RuntimeError: モデルがロードされていない場合
     """
-    if _speaker_model is None:
+    if _speaker_extractor is None:
         raise RuntimeError("Speaker model not loaded. Call load_models() first.")
-    return _speaker_model
+    return _speaker_extractor
 
 
 def load_models() -> None:
-    """WhisperとWeSpeakerモデルをロード.
+    """Whisperとsherpa-onnxモデルをロード.
 
     アプリケーション起動時またはWorkerプロセス起動時に呼び出される。
     モデルのキャッシュを作成し、初回リクエストの遅延を防ぐ。
     グローバル変数にモデルインスタンスを保存してシングルトンとして管理。
     """
-    global _whisper_model, _speaker_model
+    global _whisper_model, _speaker_extractor
 
     # Whisperモデルのロード
     logger.info(
@@ -69,9 +68,18 @@ def load_models() -> None:
 
     logger.info("Whisper model loaded successfully")
 
-    # WeSpeakerモデルのロード
-    logger.info(f"Loading WeSpeaker model: lang={wespeaker_settings.WESPEAKER_LANG}")
+    # sherpa-onnx話者埋め込みモデルのロード
+    logger.info(
+        f"Loading sherpa-onnx speaker model: {sherpa_onnx_settings.SPEAKER_MODEL_PATH} "
+        f"(num_threads={sherpa_onnx_settings.SPEAKER_NUM_THREADS})"
+    )
 
-    _speaker_model = wespeaker.Speaker(lang=wespeaker_settings.WESPEAKER_LANG)
+    config = sherpa_onnx.SpeakerEmbeddingExtractorConfig(
+        model=sherpa_onnx_settings.SPEAKER_MODEL_PATH,
+        num_threads=sherpa_onnx_settings.SPEAKER_NUM_THREADS,
+        debug=False,
+    )
 
-    logger.info("WeSpeaker model loaded successfully")
+    _speaker_extractor = sherpa_onnx.SpeakerEmbeddingExtractor(config)
+
+    logger.info("sherpa-onnx speaker model loaded successfully")

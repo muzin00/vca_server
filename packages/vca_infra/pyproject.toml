@@ -10,9 +10,8 @@ dependencies = [
     "vca-core",
     "google-cloud-storage>=3.7.0",
     "faster-whisper>=1.2.1",
-    "wespeakerruntime>=1.0.1",
-    "torch==2.4.1",
-    "torchaudio==2.4.1",
+    "sherpa-onnx>=1.12.23",
+    "sherpa-onnx-bin>=1.12.23",
     "soundfile==0.13.1",
     "av==16.1.0",
 ]

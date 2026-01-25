@@ -29,7 +29,7 @@ class MockVoiceprintService(VoiceprintServiceProtocol):
 
     def extract(self, audio_bytes: bytes, audio_format: str = "wav") -> bytes:
         """モック声紋抽出."""
-        return b"\x00" * 256 * 4
+        return b"\x00" * 192 * 4  # 192次元 * 4バイト(float32)
 
     def compare(self, embedding1: bytes, embedding2: bytes) -> float:
         """モック声紋比較."""
@@ -143,7 +143,7 @@ def registered_speaker_fixture(session: Session) -> Speaker:
     voiceprint_repo.create(
         speaker_id=speaker.id,
         voice_sample_id=1,  # ダミー値
-        embedding=b"\x00" * 256 * 4,
+        embedding=b"\x00" * 192 * 4,  # 192次元 * 4バイト(float32)
     )
 
     return speaker

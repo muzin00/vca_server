@@ -1,38 +1,37 @@
-"""声紋抽出サービス（WeSpeaker）."""
+"""声紋抽出サービス（sherpa-onnx CAM++）."""
 
 from __future__ import annotations
 
+import io
 import logging
 import struct
-import tempfile
-import uuid
-from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import numpy as np
+import soundfile as sf
 from numpy.typing import NDArray
 
 from vca_infra.utils.audio_converter import convert_to_wav
 
 if TYPE_CHECKING:
-    from wespeakerruntime import Speaker
+    import sherpa_onnx
 
 logger = logging.getLogger(__name__)
 
 
 class VoiceprintService:
-    """WeSpeakerを使用した声紋抽出サービス."""
+    """sherpa-onnx (CAM++) を使用した声紋抽出サービス."""
 
-    # 出力ベクトルの次元数
-    EMBEDDING_DIM = 256
+    # 出力ベクトルの次元数（3D-Speaker CAM++は512次元）
+    EMBEDDING_DIM = 512
 
-    def __init__(self, speaker_model: Speaker) -> None:
+    def __init__(self, extractor: sherpa_onnx.SpeakerEmbeddingExtractor) -> None:
         """初期化.
 
         Args:
-            speaker_model: wespeakerruntime.Speakerインスタンス
+            extractor: sherpa_onnx.SpeakerEmbeddingExtractorインスタンス
         """
-        self._speaker = speaker_model
+        self._extractor = extractor
 
     def extract(self, audio_bytes: bytes, audio_format: str = "wav") -> bytes:
         """音声データから声紋を抽出.
@@ -42,51 +41,56 @@ class VoiceprintService:
             audio_format: 音声フォーマット（wav, webm, mp3等）
 
         Returns:
-            声紋ベクトル（256次元のfloat32、1024バイト）
+            声紋ベクトル（512次元のfloat32、2048バイト）
         """
         logger.info(
             f"Extracting voiceprint: {len(audio_bytes)} bytes, format={audio_format}"
         )
 
         try:
-            # 内部でサンプリングレートなどの正規化も行うとより安全
+            # WAV形式に変換
             audio_bytes = convert_to_wav(audio_bytes, audio_format)
         except Exception as e:
             logger.error(f"Failed to convert audio to WAV: {e}")
             raise
 
-        tmp_path = Path(tempfile.gettempdir()) / f"{uuid.uuid4()}.wav"
-
         try:
-            tmp_path.write_bytes(audio_bytes)
-
-            # 抽出処理
-            raw_embedding = self._speaker.extract_embedding(str(tmp_path))
-            embedding = cast(NDArray[np.float32], raw_embedding)
-
-            logger.info(
-                f"Voiceprint extracted successfully: shape={embedding.shape}, "
-                f"dtype={embedding.dtype}"
+            # soundfileで音声を読み込み
+            samples, sample_rate = sf.read(
+                io.BytesIO(audio_bytes), dtype="float32"
             )
 
-            # 正常に抽出できた場合のみbytesに変換して返す
-            return self._embedding_to_bytes(embedding)
+            # ステレオの場合はモノラルに変換
+            if len(samples.shape) > 1:
+                samples = samples.mean(axis=1)
+
+            # sherpa-onnxで声紋抽出
+            stream = self._extractor.create_stream()
+            stream.accept_waveform(sample_rate, samples)
+            stream.input_finished()
+
+            embedding = self._extractor.compute(stream)
+            embedding_array = np.array(embedding, dtype=np.float32)
+
+            logger.info(
+                f"Voiceprint extracted successfully: shape={embedding_array.shape}, "
+                f"dtype={embedding_array.dtype}"
+            )
+
+            return self._embedding_to_bytes(embedding_array)
 
         except Exception as e:
             logger.error(f"Voiceprint extraction failed: {e}")
             raise
-        finally:
-            if tmp_path.exists():
-                tmp_path.unlink()
 
     def _embedding_to_bytes(self, embedding: NDArray[np.float32]) -> bytes:
         """numpy配列をbytesに変換.
 
         Args:
-            embedding: numpy配列（256次元）
+            embedding: numpy配列（512次元）
 
         Returns:
-            bytes（256 * 4 = 1024バイト）
+            bytes（512 * 4 = 2048バイト）
         """
         # float32でパック
         return struct.pack(f"{self.EMBEDDING_DIM}f", *embedding.flatten())
@@ -95,10 +99,10 @@ class VoiceprintService:
         """bytesをnumpy配列に変換.
 
         Args:
-            data: bytes（256 * 4 = 1024バイト）
+            data: bytes（512 * 4 = 2048バイト）
 
         Returns:
-            numpy配列（256次元のfloat32）
+            numpy配列（512次元のfloat32）
         """
         values = struct.unpack(f"{self.EMBEDDING_DIM}f", data)
         return np.array(values, dtype=np.float32)
